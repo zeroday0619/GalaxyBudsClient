@@ -29,7 +29,7 @@ namespace GalaxyBudsClient
             /* Clean everything from the old run up */
             if (PlatformUtils.IsWindows)
             {
-#if Windows
+#if WindowsNoARM
                 ThePBone.Interop.Win32.TrayIcon.ResourceLoader.ClearCache();
 #endif
             }
@@ -42,10 +42,14 @@ namespace GalaxyBudsClient
             ThemeUtils.Reload();
             Loc.Load();
             
+            MediaKeyRemoteImpl.Init();
             DeviceMessageCache.Init();
             UpdateManager.Init();
-            ScriptManager.Init();
             ExperimentManager.Init();
+           
+            Log.Information($"Translator mode file location: {Loc.GetTranslatorModeFile()}");
+
+            ScriptManager.Instance.RegisterUserHooks();
         }
         
         public override void OnFrameworkInitializationCompleted()
@@ -53,6 +57,11 @@ namespace GalaxyBudsClient
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 desktop.MainWindow = MainWindow.Instance;
+                desktop.Exit += (sender, args) =>
+                {
+                    SettingsProvider.Instance.FirstLaunch = false;
+                    NotifyIconImpl.Shutdown();
+                };
             }
             
             if (Loc.IsTranslatorModeEnabled())

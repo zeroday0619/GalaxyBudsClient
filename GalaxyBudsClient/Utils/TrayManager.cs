@@ -11,6 +11,7 @@ using GalaxyBudsClient.Model;
 using GalaxyBudsClient.Model.Specifications;
 using GalaxyBudsClient.Platform;
 using GalaxyBudsClient.Utils.DynamicLocalization;
+using Serilog;
 
 namespace GalaxyBudsClient.Utils
 {
@@ -27,6 +28,39 @@ namespace GalaxyBudsClient.Utils
         {
             switch (e.Id)
             {
+                case ItemType.ToggleNoiseControl:
+                    var noisePage = MainWindow.Instance.Pager.FindPage(AbstractPage.Pages.NoiseControlPro);
+                    if (noisePage is NoiseProPage page)
+                    {
+                        if (page.AmbientEnabled)
+                        {
+                            /* Ambient is on, use ANC toggle */
+                            EventDispatcher.Instance.Dispatch(EventDispatcher.Event.AncToggle);
+                        }
+                        else if (page.AncEnabled)
+                        {
+                            /* ANC is on, use ANC toggle to disable itself */
+                            EventDispatcher.Instance.Dispatch(EventDispatcher.Event.AncToggle);
+                        }
+                        else
+                        {
+                            /* Nothing is on, use ambient toggle */
+                            EventDispatcher.Instance.Dispatch(EventDispatcher.Event.AmbientToggle);
+                        }
+                    }
+                    break;
+                case ItemType.LockTouchpad:
+                    EventDispatcher.Instance.Dispatch(EventDispatcher.Event.LockTouchpadToggle);
+                    break;
+                case ItemType.ToggleAnc:
+                    EventDispatcher.Instance.Dispatch(EventDispatcher.Event.AncToggle);
+                    break;
+                case ItemType.ToggleEqualizer:
+                    EventDispatcher.Instance.Dispatch(EventDispatcher.Event.EqualizerToggle);
+                    break;
+                case ItemType.ToggleAmbient:
+                    EventDispatcher.Instance.Dispatch(EventDispatcher.Event.AmbientToggle);
+                    break;
                 case ItemType.Connect:
                     if (!BluetoothImpl.Instance.IsConnected && BluetoothImpl.Instance.RegisteredDeviceValid)
                     {
@@ -34,10 +68,13 @@ namespace GalaxyBudsClient.Utils
                     }
                     break;
                 case ItemType.Quit:
+                    Log.Information("TrayManager: Exit requested by user");
                     MainWindow.Instance.OverrideMinimizeTray = true;
                     Dispatcher.UIThread.Post(MainWindow.Instance.Close);
                     break;
             }
+            
+            Rebuild();
         }
 
         private List<TrayMenuItem?> RebuildBatteryInfo()
@@ -49,7 +86,7 @@ namespace GalaxyBudsClient.Utils
                 bsu.BatteryL > 0 ? new TrayMenuItem($"{Loc.Resolve("left")}: {bsu.BatteryL}%", false) : null,
                 bsu.BatteryR > 0 ? new TrayMenuItem($"{Loc.Resolve("right")}: {bsu.BatteryR}%", false) : null,
                 (bsu.BatteryCase > 0 && BluetoothImpl.Instance.DeviceSpec.Supports(IDeviceSpec.Feature.CaseBattery)) ?
-                     new TrayMenuItem($"{Loc.Resolve("case")}: {bsu.BatteryCase}%", false) : null,
+                    new TrayMenuItem($"{Loc.Resolve("case")}: {bsu.BatteryCase}%", false) : null,
                 new TrayMenuSeparator(),
             };
         }
@@ -62,6 +99,9 @@ namespace GalaxyBudsClient.Utils
             {
                 switch (type)
                 {
+                    case ItemType.ToggleNoiseControl:
+                        items.Add(new TrayMenuItem(Loc.Resolve("tray_switch_noise"), type));
+                        break;
                     case ItemType.ToggleEqualizer:
                         bool eqEnabled =
                             (MainWindow.Instance.Pager.FindPage(AbstractPage.Pages.Equalizer) as EqualizerPage)
@@ -69,15 +109,33 @@ namespace GalaxyBudsClient.Utils
                         items.Add(new TrayMenuItem(eqEnabled ? Loc.Resolve("tray_disable_eq") : Loc.Resolve("tray_enable_eq"), type));
                         break;
                     case ItemType.ToggleAmbient:
-                        bool ambEnabled =
-                            (MainWindow.Instance.Pager.FindPage(AbstractPage.Pages.AmbientSound) as AmbientSoundPage)
-                            ?.AmbientEnabled ?? DeviceMessageCache.Instance.ExtendedStatusUpdate?.AmbientSoundEnabled ?? false;
+                        bool ambEnabled;
+                        if (BluetoothImpl.Instance.DeviceSpec.Supports(IDeviceSpec.Feature.NoiseControl))
+                        {
+                            ambEnabled = (MainWindow.Instance.Pager.FindPage(AbstractPage.Pages.NoiseControlPro) as NoiseProPage)
+                                ?.AmbientEnabled ?? DeviceMessageCache.Instance.ExtendedStatusUpdate?.AmbientSoundEnabled ?? false;
+                        }
+                        else
+                        {
+                            ambEnabled = 
+                                (MainWindow.Instance.Pager.FindPage(AbstractPage.Pages.AmbientSound) as AmbientSoundPage)
+                                ?.AmbientEnabled ?? DeviceMessageCache.Instance.ExtendedStatusUpdate?.AmbientSoundEnabled ?? false;
+                        }
                         items.Add(new TrayMenuItem(ambEnabled ? Loc.Resolve("tray_disable_ambient_sound") : Loc.Resolve("tray_enable_ambient_sound"), type));
                         break;
                     case ItemType.ToggleAnc:
-                        bool ancEnabled =
-                            (MainWindow.Instance.Pager.FindPage(AbstractPage.Pages.Home) as HomePage)
-                            ?.AncEnabled ?? DeviceMessageCache.Instance.ExtendedStatusUpdate?.NoiceCancelling ?? false;
+                        bool ancEnabled;
+                        if (BluetoothImpl.Instance.DeviceSpec.Supports(IDeviceSpec.Feature.NoiseControl))
+                        {
+                            ancEnabled = (MainWindow.Instance.Pager.FindPage(AbstractPage.Pages.NoiseControlPro) as NoiseProPage)
+                                ?.AncEnabled ?? DeviceMessageCache.Instance.ExtendedStatusUpdate?.NoiseCancelling ?? false;
+                        }
+                        else
+                        {
+                            ancEnabled =
+                                (MainWindow.Instance.Pager.FindPage(AbstractPage.Pages.Home) as HomePage)
+                                ?.AncEnabled ?? DeviceMessageCache.Instance.ExtendedStatusUpdate?.NoiseCancelling ?? false;
+                        }
                         items.Add(new TrayMenuItem(ancEnabled ? Loc.Resolve("tray_disable_anc") : Loc.Resolve("tray_enable_anc"), type));
                         break;
                     case ItemType.LockTouchpad:

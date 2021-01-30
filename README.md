@@ -6,7 +6,7 @@
   Galaxy Buds Client
   <br>
 </h1>
-<h4 align="center">An unofficial manager for the Buds, Buds+ and Buds Live</h4>
+<h4 align="center">An unofficial manager for the Buds, Buds+, Buds Live and Buds Pro</h4>
 <p align="center">
   <a href="https://github.com/ThePBone/GalaxyBudsClient/releases">
     <img alt="GitHub downloads count" src="https://img.shields.io/github/downloads/thepbone/galaxybudsclient/total">
@@ -18,7 +18,7 @@
       <img alt="License" src="https://img.shields.io/github/license/thepbone/galaxybudsclient">
   </a>
   <a href="https://github.com/ThePBone/GalaxyBudsClient/releases">
-    <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-yellowgreen">
+    <img alt="Platform" src="https://img.shields.io/badge/platform-Windows/Linux-yellowgreen">
   </a>
 </p>
 <p align="center">
@@ -32,8 +32,13 @@
 
 
 <p align="center">
+    <a href="https://ko-fi.com/H2H83E5J3"><img alt="Screenshot" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
+</p>
+
+<p align="center">
     <a href="#"><img alt="Screenshot" src="https://github.com/ThePBone/GalaxyBudsClient/blob/master/screenshots/screencap.gif"></a>
 </p>
+
 
 ## Key Features
 
@@ -49,7 +54,7 @@ Aside from standard features known from the official Android app, this project h
 
 ## Download
 
-Get binaries for Windows in the [release](https://github.com/ThePBone/GalaxyBudsClient/releases) section. Please read the release notes before installing.
+Get binaries for Windows and Linux in the [release](https://github.com/ThePBone/GalaxyBudsClient/releases) section. Please read the release notes before installing.
 
 <p align="center">
     <a href="https://github.com/ThePBone/GalaxyBudsClient/releases"><img alt="Download" src="https://github.com/ThePBone/GalaxyBudsClient/blob/master/screenshots/download.png"></a>
@@ -105,12 +110,13 @@ If you want to contribute your own code, you can simply submit a plain pull requ
 
 * [@ArthurWolfhound](https://github.com/ArthurWolfhound) - Russian and Ukrainian translation
 * [@PlasticBrain](https://github.com/fhalfkg) - Korean and Japanese translation
+* [@cozyplanes](https://github.com/cozyplanes) - Korean translation
 * [@erenbektas](https://github.com/erenbektas) - Turkish translation
-* [@kakkk](https://github.com/kakkk) , [@KevinZonda](https://github.com/KevinZonda) and [@ssenkrad](https://github.com/ssenkrad) - Chinese translation
+* [@kakkk](https://github.com/kakkk), [@KevinZonda](https://github.com/KevinZonda), [@ssenkrad](https://github.com/ssenkrad) and [@pseudor](https://github.com/pseudor) - Chinese translation
 * [@efrenbg1](https://github.com/efrenbg1) and Andrew Gonza - Spanish translation
 * [@giovankabisano](https://github.com/giovankabisano) - Indonesian translation
 * [@lucasskluser](https://github.com/lucasskluser) - Portuguese translation
-* [@alb-p](https://github.com/alb-p) - Italian translation
+* [@alb-p](https://github.com/alb-p), [@mario-donnarumma](https://github.com/mario-donnarumma) - Italian translation
 * [@Buashei](https://github.com/Buashei) - Polish translation
 
 ## License

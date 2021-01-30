@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -8,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using GalaxyBudsClient.Model.Constants;
+using GalaxyBudsClient.Platform;
 using Serilog;
 
 namespace GalaxyBudsClient.Utils
@@ -27,9 +29,7 @@ namespace GalaxyBudsClient.Utils
             public static event Action? LanguageUpdated;
             public static string GetTranslatorModeFile()
             {
-                return Path.Combine(
-                    Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty,
-                    "custom_language.xaml");
+                return PlatformUtils.CombineDataPath("custom_language.xaml");
             }
 
             public static bool IsTranslatorModeEnabled()

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -19,6 +21,7 @@ using GalaxyBudsClient.Utils;
 using Sentry;
 using Serilog;
 using Serilog.Filters;
+using ThePBone.Interop.Win32;
 
 namespace GalaxyBudsClient
 {
@@ -35,14 +38,13 @@ namespace GalaxyBudsClient
                     o.MinimumBreadcrumbLevel = Serilog.Events.LogEventLevel.Debug;
                     o.MinimumEventLevel = Serilog.Events.LogEventLevel.Fatal;
                 })
-                .WriteTo.File(PlatformUtils.CombineDataPath("application.log"));
-
+                .WriteTo.File(PlatformUtils.CombineDataPath("application.log"))
+                .WriteTo.Console();
+            
             config = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VERBOSE")) ? 
                 config.MinimumLevel.Verbose() : config.MinimumLevel.Debug();
             
-            config = PlatformUtils.IsWindows ? 
-                config.WriteTo.Debug() : config.WriteTo.Console();
-            Log.Logger =  config.CreateLogger();
+            Log.Logger = config.CreateLogger();
             
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
@@ -56,26 +58,55 @@ namespace GalaxyBudsClient
 #if DEBUG
                 o.Environment = "staging";
 #else
-                o.Environment = "beta";
+                o.Environment = "production";
 #endif
                 o.BeforeSend = sentryEvent =>
                 {
-                    sentryEvent.SetTag("bluetooth-mac", SettingsProvider.Instance.RegisteredDevice.MacAddress);
-                    sentryEvent.SetTag("bluetooth-model", BluetoothImpl.Instance.ActiveModel.ToString());
-                    sentryEvent.SetTag("sw-version", DeviceMessageCache.Instance.DebugGetAllData?.SoftwareVersion ?? "null");
-                    
-                    sentryEvent.SetExtra("bluetooth-mac", SettingsProvider.Instance.RegisteredDevice.MacAddress);
-                    sentryEvent.SetExtra("bluetooth-model", BluetoothImpl.Instance.ActiveModel);
-                    sentryEvent.SetExtra("bluetooth-model-saved", SettingsProvider.Instance.RegisteredDevice.Model);
-                    sentryEvent.SetExtra("bluetooth-connected", BluetoothImpl.Instance.IsConnected);
-                    sentryEvent.SetExtra("custom-locale", SettingsProvider.Instance.Locale);
-                    sentryEvent.SetExtra("sw-version", DeviceMessageCache.Instance.DebugGetAllData?.SoftwareVersion ?? "null");
-
-                    sentryEvent.SetExtra("current-page", MainWindow.Instance.Pager.CurrentPage);
+                    try
+                    {
+                        sentryEvent.SetTag("arch", System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString());
+                        sentryEvent.SetTag("bluetooth-mac", SettingsProvider.Instance.RegisteredDevice.MacAddress);
+                        sentryEvent.SetTag("sw-version",
+                            DeviceMessageCache.Instance.DebugGetAllData?.SoftwareVersion ?? "null");
+                        
+                        sentryEvent.SetExtra("arch", System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString());
+                        sentryEvent.SetExtra("bluetooth-mac", SettingsProvider.Instance.RegisteredDevice.MacAddress);
+                        sentryEvent.SetExtra("bluetooth-model-saved", SettingsProvider.Instance.RegisteredDevice.Model);
+                        sentryEvent.SetExtra("custom-locale", SettingsProvider.Instance.Locale);          
+                        sentryEvent.SetExtra("sw-version",
+                            DeviceMessageCache.Instance.DebugGetAllData?.SoftwareVersion ?? "null");                 
+                                          
+                        sentryEvent.SetExtra("current-page", MainWindow.Instance.Pager.CurrentPage);
+                        
+                        sentryEvent.SetTag("bluetooth-model", BluetoothImpl.Instance.ActiveModel.ToString());
+                        sentryEvent.SetExtra("bluetooth-model", BluetoothImpl.Instance.ActiveModel);
+                        sentryEvent.SetExtra("bluetooth-connected", BluetoothImpl.Instance.IsConnected);
+                    }
+                    catch (Exception ex)
+                    {
+                        sentryEvent.SetExtra("beforesend-error", ex);
+                        Log.Error("Sentry.BeforeSend: Error while adding attachments: " + ex.Message);
+                    }
 
                     return sentryEvent;
                 };
             });
+
+            /* Fix Avalonia font issue */
+            if (PlatformUtils.IsLinux)
+            {
+                try
+                {
+                    Thread.CurrentThread.CurrentCulture = new CultureInfo("en-US");
+                    Thread.CurrentThread.CurrentUICulture = new CultureInfo("en-US");
+                }
+                catch (CultureNotFoundException ex)
+                {
+                    Log.Warning("Startup: Culture en-US unavailable. Falling back to C. " + ex);
+                    Thread.CurrentThread.CurrentCulture = new CultureInfo("C");
+                    Thread.CurrentThread.CurrentUICulture = new CultureInfo("C");
+                }
+            }
 
             try
             {

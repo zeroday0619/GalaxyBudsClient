@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Config.Net;
 using GalaxyBudsClient.Model.Constants;
+using GalaxyBudsClient.Model.Hotkeys;
 
 namespace GalaxyBudsClient.Model
 {
@@ -55,9 +56,15 @@ namespace GalaxyBudsClient.Model
         
         [Option(DefaultValue = "")]
         string UpdateSkippedVersion { set; get; }
+        [Option(DefaultValue = true)]
         bool MinimizeToTray { set; get; }
         bool ResumePlaybackOnSensor { set; get; }
         
         IExperiments Experiments { set; get; }
+        
+        Hotkey[] Hotkeys { set; get; }
+        
+        [Option(DefaultValue = true)]
+        bool FirstLaunch { set; get; }
     }
 }

@@ -32,7 +32,7 @@
                 <Label Name="BatteryTemperatureRight" Content="{DynamicResource unknown}" Margin="360,109,0,35" HorizontalAlignment="Left" FontSize="14" Foreground="{DynamicResource ForegroundTextBrush}" PointerPressed="RequestTempUnitChange_OnPointerPressed" />
                 <Label Name="BatteryCase" Margin="204,130,204,14" FontSize="16" Foreground="{DynamicResource ForegroundTextBrush}" HorizontalContentAlignment="Center" />
                 <Label Name="CaseLabel" Foreground="{DynamicResource SubtitleTextBrush}"
-                       FontSize="13" VerticalAlignment="Top" Content="{DynamicResource case}" Margin="218,113,218,0" HorizontalContentAlignment="Center"/>
+                       FontSize="13" VerticalAlignment="Top" Content="{DynamicResource case}" Margin="216,113,216,0" HorizontalContentAlignment="Center"/>
 
                 <Grid HorizontalAlignment="Center" VerticalAlignment="Top" Margin="10" x:Name="WarningContainer">
                     <Grid.ColumnDefinitions>
@@ -73,6 +73,9 @@
                 </Grid.RowDefinitions>
                 <Border IsVisible="True" Name="AmbientBorder" Grid.Row="0" CornerRadius="{StaticResource DefaultCornerRadius}" Classes="BorderHoverStyle" PointerPressed="Ambient_OnPointerPressed">
                     <items:IconListItem FontSize="18" Source="/Resources/features/sound_color.png" Text="{DynamicResource mainpage_ambient_sound}" />
+                </Border>
+                <Border IsVisible="False" Name="NoiseBorder" Grid.Row="0" CornerRadius="{StaticResource DefaultCornerRadius}" Classes="BorderHoverStyle" PointerPressed="NoiseBorder_OnPointerPressed">
+                    <items:IconListItem FontSize="18" Source="/Resources/features/sound_color.png" Text="{DynamicResource mainpage_noise}" />
                 </Border>
                 <Border Name="AncBorder" IsVisible="False" Grid.Row="0" CornerRadius="{StaticResource DefaultCornerRadius}" Classes="BorderHoverStyle" PointerPressed="AncBorder_OnPointerPressed">
                     <Grid>

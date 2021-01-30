@@ -8,8 +8,12 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Platform;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform;
 using Avalonia.Threading;
+using Avalonia.Win32;
 using GalaxyBudsClient.Bluetooth;
 using GalaxyBudsClient.Interface;
 using GalaxyBudsClient.Interface.Developer;
@@ -21,11 +25,15 @@ using GalaxyBudsClient.Message.Decoder;
 using GalaxyBudsClient.Model;
 using GalaxyBudsClient.Model.Constants;
 using GalaxyBudsClient.Platform;
+using GalaxyBudsClient.Platform.Windows;
+using GalaxyBudsClient.Scripting;
+using GalaxyBudsClient.Scripting.Experiment;
 using GalaxyBudsClient.Utils;
 using GalaxyBudsClient.Utils.DynamicLocalization;
 using NetSparkleUpdater.Enums;
 using Serilog;
 using Application = Avalonia.Application;
+using Environment = System.Environment;
 using MessageBox = GalaxyBudsClient.Interface.Dialogs.MessageBox;
 using RoutedEventArgs = Avalonia.Interactivity.RoutedEventArgs;
 using Window = Avalonia.Controls.Window;
@@ -34,13 +42,13 @@ namespace GalaxyBudsClient
 {
     public sealed class MainWindow : Window
     {
-        private readonly HomePage _homePage = new HomePage();
-        private readonly UnsupportedFeaturePage _unsupportedFeaturePage = new UnsupportedFeaturePage();
-        private readonly CustomTouchActionPage _customTouchActionPage = new CustomTouchActionPage();
-        private readonly ConnectionLostPage _connectionLostPage = new ConnectionLostPage();
-        private readonly UpdatePage _updatePage = new UpdatePage();
-        private readonly UpdateProgressPage _updateProgressPage = new UpdateProgressPage();
-        private readonly DeviceSelectionPage _deviceSelectionPage = new DeviceSelectionPage();
+        public readonly HomePage HomePage = new HomePage();
+        public readonly UnsupportedFeaturePage UnsupportedFeaturePage = new UnsupportedFeaturePage();
+        public readonly CustomTouchActionPage CustomTouchActionPage = new CustomTouchActionPage();
+        public readonly ConnectionLostPage ConnectionLostPage = new ConnectionLostPage();
+        public readonly UpdatePage UpdatePage = new UpdatePage();
+        public readonly UpdateProgressPage UpdateProgressPage = new UpdateProgressPage();
+        public readonly DeviceSelectionPage DeviceSelectionPage = new DeviceSelectionPage();
         
         private DevOptions? _devOptions;
 
@@ -49,41 +57,97 @@ namespace GalaxyBudsClient
         private DateTime _lastPopupTime = DateTime.UtcNow;
         private WearStates _lastWearState = WearStates.Both;
 
+        private bool _firstShow = true;
+        
         public bool OverrideMinimizeTray { set; get; }
         public bool DisableApplicationExit { set; get; }
         
         public PageContainer Pager { get; }
-        public CustomTouchActionPage CustomTouchActionPage => _customTouchActionPage;
-        public UpdatePage UpdatePage => _updatePage;
-        public UpdateProgressPage UpdateProgressPage => _updateProgressPage;
-        public DeviceSelectionPage DeviceSelectionPage => _deviceSelectionPage;
-
+        
         private static MainWindow? _instance;
-        public static MainWindow Instance => _instance ??= new MainWindow();
+        public static MainWindow Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    var platform = AvaloniaLocator.Current.GetService<IWindowingPlatform>();
+                    if (platform == null)
+                    {
+                        throw new Exception("Could not CreateWindow(): IWindowingPlatform is not registered.");
+                    }
+
+                    IWindowImpl impl;
+                    if (platform.GetType().Name == "Win32Platform")
+                    {
+                        Log.Debug("MainWindow.Instance: Initializing window with WndProc proxy");
+                        impl = new Win32ProcWindowImpl();
+                    }
+                    else
+                    {
+                        Log.Debug("MainWindow.Instance: Initializing window with default WindowImpl");
+                        impl = platform.CreateWindow();
+                    }
+                    
+                    _instance = new MainWindow(impl);
+                }
+
+                return _instance;
+            }
+        }
+
+        public static bool IsReady()
+        {
+            return _instance != null;
+        }
 
         public static void Kill()
         {
             _instance = null;
         }
 
+        /* Public constructor for XAMLIL only */
         public MainWindow()
+        {
+            /* Init with dummy objects */
+            _titleBar = new CustomTitleBar();
+            _popup = new BudsPopup();
+            Pager = new PageContainer();
+            Log.Error("MainWindow: Initialized without modified PlatformImpl. Features making use of legacy Win32 APIs may be unavailable.");
+        }
+        
+        public MainWindow(IWindowImpl impl) : base(impl)
         {
             AvaloniaXamlLoader.Load(this);
             this.AttachDevTools();
-
+            
             Pager = this.FindControl<PageContainer>("Container");
 
-            Pager.RegisterPages(_homePage, new AmbientSoundPage(), new FindMyGearPage(), new FactoryResetPage(),
-                new CreditsPage(), new TouchpadPage(), new EqualizerPage(), new AdvancedPage(),
+            Pager.RegisterPages(HomePage, new AmbientSoundPage(), new FindMyGearPage(), new FactoryResetPage(),
+                new CreditsPage(), new TouchpadPage(), new EqualizerPage(), new AdvancedPage(), new NoiseProPage(),
                 new SystemPage(), new SelfTestPage(), new SettingsPage(), new PopupSettingsPage(),
-                _connectionLostPage, _customTouchActionPage, _deviceSelectionPage, new SystemInfoPage(),
-                new WelcomePage(), _unsupportedFeaturePage, _updatePage, _updateProgressPage, new SystemCoredumpPage());
+                ConnectionLostPage, CustomTouchActionPage, DeviceSelectionPage, new SystemInfoPage(),
+                new WelcomePage(), UnsupportedFeaturePage, UpdatePage, UpdateProgressPage, new SystemCoredumpPage(),
+                new HotkeyPage());
 
             _titleBar = this.FindControl<CustomTitleBar>("TitleBar");
             _titleBar.PointerPressed += (i, e) => PlatformImpl?.BeginMoveDrag(e);
             _titleBar.OptionsPressed += (i, e) => _titleBar.OptionsButton.ContextMenu.Open(_titleBar.OptionsButton);
-            
-            _popup = new BudsPopup();
+            _titleBar.ClosePressed += (sender, args) =>
+            {
+                if (SettingsProvider.Instance.MinimizeToTray && !OverrideMinimizeTray && PlatformUtils.SupportsTrayIcon)
+                {
+                    Log.Information("MainWindow.TitleBar: Close requested, minimizing to tray bar");
+                    Hide();
+                }
+                else
+                { 
+                    Log.Information("MainWindow.TitleBar: Close requested, exiting app");
+                    Close();
+                }
+            };
+
+                _popup = new BudsPopup();
 
             BluetoothImpl.Instance.BluetoothError += OnBluetoothError;
             BluetoothImpl.Instance.Disconnected += OnDisconnected;
@@ -93,9 +157,10 @@ namespace GalaxyBudsClient
             SPPMessageHandler.Instance.StatusUpdate += OnStatusUpdate;
             SPPMessageHandler.Instance.OtherOption += HandleOtherTouchOption;
 
+            EventDispatcher.Instance.EventReceived += OnEventReceived;
             NotifyIconImpl.Instance.LeftClicked += TrayIcon_OnLeftClicked;
             TrayManager.Instance.Rebuild();
-
+            
             Pager.PageSwitched += (sender, pages) => BuildOptionsMenu();
             Loc.LanguageUpdated += BuildOptionsMenu;
             BuildOptionsMenu();
@@ -109,28 +174,70 @@ namespace GalaxyBudsClient
             {
                 Pager.SwitchPage(AbstractPage.Pages.Welcome);
             }
+            
+            if (Application.Current.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                if (desktop.Args.Contains("/StartMinimized") && PlatformUtils.SupportsTrayIcon)
+                {
+                    WindowState = WindowState.Minimized;
+                }
+            }
         }
-        
+
+        private async void OnEventReceived(EventDispatcher.Event e, object? arg)
+        {
+            switch (e)
+            {
+                case EventDispatcher.Event.PairingMode:
+                    await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.UNK_PAIRING_MODE);
+                    break;
+                case EventDispatcher.Event.ToggleManagerVisibility:
+                    if (!IsVisible)
+                    {
+                        BringToFront();
+                    }
+                    else
+                    {
+                        Hide();
+                    }
+                    break;
+                case EventDispatcher.Event.Connect:
+                    if (!BluetoothImpl.Instance.IsConnected)
+                    {
+                        await BluetoothImpl.Instance.ConnectAsync();
+                    }
+                    break;
+                case EventDispatcher.Event.ShowBatteryPopup:
+                    ShowPopup(ignoreRestrictions: true);
+                    break;
+            }
+        }
+
         #region Window management
         protected override async void OnInitialized()
         {
             SingleInstanceWatcher.Activated += BringToFront;
-
+            
             if (BluetoothImpl.Instance.RegisteredDeviceValid)
             {
                 await Task.Delay(3000).ContinueWith((_) => UpdateManager.Instance.SilentCheck());
             }
             base.OnInitialized();
         }
-
+        
         protected override async void OnClosing(CancelEventArgs e)
         {
-            await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.MSG_ID_FIND_MY_EARBUDS_STOP);
-
+            await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.FIND_MY_EARBUDS_STOP);
+            
             if (SettingsProvider.Instance.MinimizeToTray && !OverrideMinimizeTray && PlatformUtils.SupportsTrayIcon)
             {
                 Hide();
                 e.Cancel = true;
+                Log.Debug("MainWindow.OnClosing: Termination cancelled");
+            }
+            else
+            {
+                Log.Debug("MainWindow.OnClosing: Now closing session");
             }
             
             base.OnClosing(e);
@@ -138,14 +245,19 @@ namespace GalaxyBudsClient
 
         protected override void OnOpened(EventArgs e)
         {
+            HotkeyReceiverImpl.Reset();
+            HotkeyReceiverImpl.Instance.Update(silent: true);
+            
             if (Application.Current.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                if (desktop.Args.Contains("/StartMinimized") && PlatformUtils.SupportsTrayIcon)
+                if (desktop.Args.Contains("/StartMinimized") && PlatformUtils.SupportsTrayIcon && _firstShow)
                 {
                     Log.Debug("MainWindow: Launched minimized.");
                     Hide();
                 }
             }
+
+            _firstShow = false;
         }
 
         protected override void OnClosed(EventArgs e)
@@ -159,6 +271,8 @@ namespace GalaxyBudsClient
             SPPMessageHandler.Instance.OtherOption -= HandleOtherTouchOption;
 
             NotifyIconImpl.Instance.LeftClicked -= TrayIcon_OnLeftClicked;
+            EventDispatcher.Instance.EventReceived -= OnEventReceived;
+
             Loc.LanguageUpdated -= BuildOptionsMenu;
 
             if (DisableApplicationExit)
@@ -168,10 +282,12 @@ namespace GalaxyBudsClient
             
             if(Application.Current.ApplicationLifetime is ClassicDesktopStyleApplicationLifetime desktop)
             {
+                Log.Information("MainWindow: Shutting down normally");
                 desktop.Shutdown();
             }
             else
             {
+                Log.Information("MainWindow: Shutting down using Environment.Exit");
                 Environment.Exit(0);
             }
         }
@@ -179,18 +295,19 @@ namespace GalaxyBudsClient
         public void BringToFront()
         {
             Dispatcher.UIThread.InvokeAsync(() =>
-            {
+            {  
                 if (WindowState == WindowState.Minimized)
                 {
                     WindowState = WindowState.Normal;
                 }
-
+                
                 if (PlatformUtils.IsLinux)
                 {
                     Hide(); // Workaround for some Linux DMs
                 }
+                
                 Show();
-
+                
                 Activate();
                 Topmost = true;
                 Topmost = false;
@@ -228,7 +345,11 @@ namespace GalaxyBudsClient
 
         private async void OnExtendedStatusUpdate(object? sender, ExtendedStatusUpdateParser e)
         {
-            ShowPopup();
+            if (SettingsProvider.Instance.Popup.Enabled)
+            {
+                ShowPopup();
+            }
+            
             await MessageComposer.SetManagerInfo();
         }
 
@@ -268,49 +389,70 @@ namespace GalaxyBudsClient
             ICustomAction action = e == TouchOptions.OtherL ?
                 SettingsProvider.Instance.CustomActionLeft : SettingsProvider.Instance.CustomActionRight;
 
-            if (action.Action == CustomAction.Actions.RunExternalProgram)
+            switch (action.Action)
             {
-                try
-                {
-                    var psi = new ProcessStartInfo
+                case CustomAction.Actions.Event:
+                    EventDispatcher.Instance.Dispatch(Enum.Parse<EventDispatcher.Event>(action.Parameter), true);
+                    break;
+                case CustomAction.Actions.RunExternalProgram:
+                    try
                     {
-                        FileName = action.Parameter,
-                        UseShellExecute = true
-                    };
-                    Process.Start(psi);
-                }
-                catch (FileNotFoundException ex)
-                {
-                    new MessageBox()
-                    {
-                        Title = "Custom long-press action failed",
-                        Description = $"Unable to launch external application.\n" +
-                                      $"File not found: '{ex.FileName}'"
-                    }.Show(this);
-                }
-                catch (Win32Exception ex)
-                {
-                    if (ex.NativeErrorCode == 13 && PlatformUtils.IsLinux)
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = action.Parameter,
+                            UseShellExecute = true
+                        };
+                        Process.Start(psi);
+                    }
+                    catch (FileNotFoundException ex)
                     {
                         new MessageBox()
                         {
                             Title = "Custom long-press action failed",
-                            Description = $"Unable to launch external application.\n\n" +
-                                          $"Insufficient permissions. Please add execute permissions for your user/group to this file.\n\n" +
-                                          $"Run this command in a terminal: chmod +x \"{action.Parameter}\""
+                            Description = $"Unable to launch external application.\n" +
+                                          $"File not found: '{ex.FileName}'"
                         }.Show(this);
                     }
-                    else
+                    catch (Win32Exception ex)
                     {
-                        new MessageBox()
+                        if (ex.NativeErrorCode == 13 && PlatformUtils.IsLinux)
                         {
-                            Title = "Custom long-press action failed",
-                            Description = $"Unable to launch external application.\n\n" +
-                                          $"Detailed information:\n\n" +
-                                          $"{ex.Message}"
-                        }.Show(this);
+                            new MessageBox()
+                            {
+                                Title = "Custom long-press action failed",
+                                Description = $"Unable to launch external application.\n\n" +
+                                              $"Insufficient permissions. Please add execute permissions for your user/group to this file.\n\n" +
+                                              $"Run this command in a terminal: chmod +x \"{action.Parameter}\""
+                            }.Show(this);
+                        }
+                        else
+                        {
+                            new MessageBox()
+                            {
+                                Title = "Custom long-press action failed",
+                                Description = $"Unable to launch external application.\n\n" +
+                                              $"Detailed information:\n\n" +
+                                              $"{ex.Message}"
+                            }.Show(this);
+                        }
                     }
-                }
+
+                    break;
+                case CustomAction.Actions.TriggerHotkey:
+                    var keys = new List<Key>();
+                    try
+                    {
+                        keys.AddRange(action.Parameter.Split(',').Select(Enum.Parse<Key>));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error("CustomAction.HotkeyBroadcast: Cannot parse saved key-combo: " + ex.Message);
+                        Log.Error("CustomAction.HotkeyBroadcast: Caused by combo: " + action.Parameter);
+                        return;
+                    }
+
+                    HotkeyBroadcastImpl.Instance.SendKeys(keys);
+                    break;
             }
         }
         #endregion
@@ -327,7 +469,7 @@ namespace GalaxyBudsClient
                 [Loc.Resolve("optionsmenu_settings")] =
                     (sender, args) => Pager.SwitchPage(AbstractPage.Pages.Settings),
                 [Loc.Resolve("optionsmenu_refresh")] = async (sender, args) =>
-                    await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.MSG_ID_DEBUG_GET_ALL_DATA),
+                    await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.DEBUG_GET_ALL_DATA),
                 [Loc.Resolve("optionsmenu_deregister")] = (sender, args) => BluetoothImpl.Instance.UnregisterDevice()
                     .ContinueWith((_) => Pager.SwitchPage(AbstractPage.Pages.Welcome))
             };
@@ -373,13 +515,13 @@ namespace GalaxyBudsClient
 
         public void ShowUnsupportedFeaturePage(string assertion)
         {
-            _unsupportedFeaturePage.RequiredVersion = assertion;
+            UnsupportedFeaturePage.RequiredVersion = assertion;
             Pager.SwitchPage(AbstractPage.Pages.UnsupportedFeature);
         }
 
         public void ShowCustomActionSelection(Devices device)
         {
-            _customTouchActionPage.CurrentSide = device;
+            CustomTouchActionPage.CurrentSide = device;
             Pager.SwitchPage(AbstractPage.Pages.TouchCustomAction);
         }
         #endregion

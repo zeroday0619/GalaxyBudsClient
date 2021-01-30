@@ -31,48 +31,36 @@ namespace GalaxyBudsClient.Interface.Pages
 			_presetSlider = this.FindControl<SliderListItem>("EqPreset");
 			
 			SPPMessageHandler.Instance.ExtendedStatusUpdate += InstanceOnExtendedStatusUpdate;
-			SPPMessageHandler.Instance.OtherOption += InstanceOnOtherOption;
 			
-            NotifyIconImpl.Instance.TrayMenuItemSelected += OnTrayMenuItemSelected;
-            
+			EventDispatcher.Instance.EventReceived += OnEventReceived;
+
 			Loc.LanguageUpdated += UpdateStrings;
 			UpdateStrings();
 		}
 
-        private async void OnTrayMenuItemSelected(object? sender, TrayMenuItem e)
+		private void OnEventReceived(EventDispatcher.Event e, object? arg)
         {
-            if (e.Id == ItemType.ToggleEqualizer)
+            Dispatcher.UIThread.Post(async () =>
             {
-                await MessageComposer.SetEqualizer(!_eqSwitch.IsChecked, (EqPreset)_presetSlider.Value, false);
-				Dispatcher.UIThread.Post(_eqSwitch.Toggle);
-                TrayManager.Instance.Rebuild();
-            }
+                switch (e)
+                {
+                    case EventDispatcher.Event.EqualizerToggle:
+	                    await MessageComposer.SetEqualizer(!_eqSwitch.IsChecked, (EqPreset)_presetSlider.Value, false);
+	                    _eqSwitch.Toggle();
+                        break;
+                    case EventDispatcher.Event.EqualizerNextPreset:
+	                    _eqSwitch.IsChecked = true;
+	                    var newVal = _presetSlider.Value + 1;
+	                    if (newVal >= 5)
+		                    newVal = 0;
+
+	                    _presetSlider.Value = newVal;
+	                    await MessageComposer.SetEqualizer(_eqSwitch.IsChecked, (EqPreset)_presetSlider.Value, false);
+	                    break;
+                }
+            });
         }
-
-        private async void InstanceOnOtherOption(object? sender, TouchOptions e)
-		{
-			ICustomAction action = e == TouchOptions.OtherL ? 
-				SettingsProvider.Instance.CustomActionLeft : SettingsProvider.Instance.CustomActionRight;
-			
-			switch (action.Action)
-			{
-				case CustomAction.Actions.EnableEqualizer:
-					_eqSwitch.IsChecked = !_eqSwitch.IsChecked;
-					await MessageComposer.SetEqualizer(_eqSwitch.IsChecked, (EqPreset)_presetSlider.Value, false);
-					break;
-				
-				case CustomAction.Actions.SwitchEqualizerPreset:
-					_eqSwitch.IsChecked = true;
-					var newVal = _presetSlider.Value + 1;
-					if (newVal >= 5)
-						newVal = 0;
-
-					_presetSlider.Value = newVal;
-					await MessageComposer.SetEqualizer(_eqSwitch.IsChecked, (EqPreset)_presetSlider.Value, false);
-					break;
-			}
-		}
-
+		
 		private void InstanceOnExtendedStatusUpdate(object? sender, ExtendedStatusUpdateParser e)
 		{
 			if (BluetoothImpl.Instance.ActiveModel == Models.Buds)

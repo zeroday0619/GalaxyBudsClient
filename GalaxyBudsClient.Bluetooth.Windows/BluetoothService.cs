@@ -14,6 +14,7 @@ using Serilog;
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using System.Transactions;
+using InTheHand.Net.Bluetooth.Msft;
 using ThePBone.Interop.Win32;
 using ThePBone.Interop.Win32.Devices;
 
@@ -46,12 +47,26 @@ namespace GalaxyBudsClient.Bluetooth.Windows
 
         public BluetoothService()
         {
-            SetupDeviceDetection();
+            try
+            {
+                if (!WindowsBluetoothRadio.IsPlatformSupported)
+                {
+                    Log.Error("Windows.BluetoothService: Microsoft Bluetooth Stack unavailable");
+                    throw new PlatformNotSupportedException("Microsoft Bluetooth stack not available");
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new PlatformNotSupportedException($"Error while initializing legacy Bluetooth backend for older Windows 10 versions: {ex.Message}");
+            }
+
+            Task.Delay(2000).ContinueWith(x => SetupDeviceDetection());
         }
 
         #region Detection
         private void SetupDeviceDetection()
         {
+            Log.Debug("Windows.BluetoothService: Setting device detection up");
             Task.Factory.StartNew(Win32DeviceChangeListener.Init);
             
             try
@@ -243,7 +258,7 @@ namespace GalaxyBudsClient.Bluetooth.Windows
         }
         #endregion
 
-        #region Enumaration
+        #region Enumeration
         public async Task<BluetoothDevice[]> GetDevicesAsync()
         {
             if (_client == null)

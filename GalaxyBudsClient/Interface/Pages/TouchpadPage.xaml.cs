@@ -43,24 +43,28 @@ namespace GalaxyBudsClient.Interface.Pages
 			_rightOption = this.FindControl<MenuDetailListItem>("RightOption");
 
             SPPMessageHandler.Instance.ExtendedStatusUpdate += InstanceOnExtendedStatusUpdate;
-			
-            NotifyIconImpl.Instance.TrayMenuItemSelected += OnTrayMenuItemSelected;
+            EventDispatcher.Instance.EventReceived += OnEventReceived;
             
 			Loc.LanguageUpdated += UpdateTouchActionMenus;
 			Loc.LanguageUpdated += UpdateMenuDescriptions;
 			UpdateTouchActionMenus();
 		}
 
-        private async void OnTrayMenuItemSelected(object? sender, TrayMenuItem e)
-        {
-			if (e.Id == ItemType.LockTouchpad)
-            {
-				await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.MSG_ID_LOCK_TOUCHPAD, !_lock.IsChecked);
-				Dispatcher.UIThread.Post(_lock.Toggle);
-                TrayManager.Instance.Rebuild();
-            }
+		private async void OnEventReceived(EventDispatcher.Event e, object? arg)
+		{
+			switch (e)
+			{
+				case EventDispatcher.Event.LockTouchpadToggle:
+					_lock.Toggle();
+					await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.LOCK_TOUCHPAD, _lock.IsChecked);
+					break;
+				case EventDispatcher.Event.ToggleDoubleEdgeTouch:
+					_edgeTouch.Toggle();
+					await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.OUTSIDE_DOUBLE_TAP, _edgeTouch.IsChecked);
+					break;
+			}
 		}
-
+		
         private void InstanceOnExtendedStatusUpdate(object? sender, ExtendedStatusUpdateParser e)
 		{
 			_lock.IsChecked = e.TouchpadLock;
@@ -173,8 +177,6 @@ namespace GalaxyBudsClient.Interface.Pages
 			}
 
 			await MessageComposer.Touch.SetOptions(_lastLeftOption, _lastRightOption);
-			
-			// TODO: Force enable MinimizeTray and AutoStart here!
 		}
 
 		
@@ -185,6 +187,7 @@ namespace GalaxyBudsClient.Interface.Pages
 			
 			MainWindow.Instance.CustomTouchActionPage.Accepted += CustomTouchActionPageOnAccepted;
 
+			UpdateTouchActionMenus();
 			UpdateMenuDescriptions();
 		}
 		
@@ -195,12 +198,12 @@ namespace GalaxyBudsClient.Interface.Pages
 
 		private async void LockToggle_OnToggled(object? sender, bool e)
 		{
-			await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.MSG_ID_LOCK_TOUCHPAD, e);
+			await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.LOCK_TOUCHPAD, e);
 		}
 
 		private async void DoubleTapVolume_OnToggled(object? sender, bool e)
 		{
-			await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.MSG_ID_OUTSIDE_DOUBLE_TAP, e);
+			await BluetoothImpl.Instance.SendRequestAsync(SPPMessage.MessageIds.OUTSIDE_DOUBLE_TAP, e);
 		}
 	}
 }
